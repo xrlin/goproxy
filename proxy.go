@@ -1,64 +1,87 @@
 package main
 
 import (
-	"net"
-	"log"
-	"fmt"
-	"bytes"
-	"net/url"
-	"strings"
 	"io"
+	"log"
+	"net"
+	"net/http"
+	"strings"
+	"sync"
 )
 
-func main() {
-	proxyServer, err := net.Listen("tcp", ":1081")
-	if err != nil {
-		log.Panic(err)
-	}
-	for {
-		client, err := proxyServer.Accept()
-		if err != nil {
-			log.Println(err)
-		}
-		go handleProxy(client)
-	}
+type proxy struct {
 }
 
-func handleProxy(client net.Conn) {
-	defer client.Close()
-	// 获取tcp报文头部信息，tcp的body数据在1025字节之后
-	var headerData [1024]byte
-	n, err := client.Read(headerData[:])
-	if err != nil {
-		log.Println(err)
+// Main method to listen and handle the incoming connection, includes http, https, ws
+func (p *proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Method == http.MethodConnect {
+		p.handleTunnel(w, req)
 		return
 	}
-	var method, host, address string
-	fmt.Sscanf(string(headerData[:bytes.IndexByte(headerData[:], '\n')]), "%s%s", &method, &host)
-	urlInfo, _ := url.Parse(host)
-	// 解析http请求的域名、端口信息
-	if urlInfo.Opaque == "443" {
-		address = urlInfo.Scheme + ":443"
-	} else {
-		if strings.Index(urlInfo.Scheme, ":") == -1 {
-			address = urlInfo.Scheme + ":80"
-		} else {
-			address = urlInfo.Scheme
+	p.handleHttp(w, req)
+}
+
+// Handle normal http connection
+func (p *proxy) handleHttp(w http.ResponseWriter, req *http.Request) {
+	transport := http.DefaultTransport
+	newReq := new(http.Request)
+	*newReq = *req
+	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+		if prior, ok := newReq.Header["X-Forwarded-For"]; ok {
+			clientIP = strings.Join(prior, ", ") + ", " + clientIP
+		}
+		newReq.Header.Set("X-Forwarded-For", clientIP)
+	}
+	resp, err := transport.RoundTrip(newReq)
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+		return
+	}
+	for key, value := range resp.Header {
+		for _, v := range value {
+			w.Header().Add(key, v)
 		}
 	}
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
+	resp.Body.Close()
+}
 
-	proxyClient, err := net.Dial("tcp", address)
+// Use tunnel to proxy https、ws and other proto..
+func (p *proxy) handleTunnel(w http.ResponseWriter, req *http.Request) {
+	conn, err := net.Dial("tcp", req.Host)
+	eof := sync.WaitGroup{}
 	if err != nil {
-		log.Println(err)
+		w.Write([]byte(err.Error()))
+		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
-
-	if method == "CONNECT" {
-		// 连接代理时返回的信息
-		fmt.Fprint(client, "HTTP/1.1 200 Connection established\r\n\r\n")
-	} else {
-		proxyClient.Write(headerData[:n])
+	defer conn.Close()
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
+		return
 	}
-	go io.Copy(proxyClient, client)
-	io.Copy(client, proxyClient)
+	// called before Hijack() called, otherwise will block the connection
+	w.WriteHeader(http.StatusOK)
+	source, _, err := hj.Hijack()
+	defer source.Close()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	eof.Add(2)
+	go func() {
+		io.Copy(conn, source)
+		eof.Done()
+	}()
+	go func() {
+		io.Copy(source, conn)
+		eof.Done()
+	}()
+	eof.Wait()
+}
+
+func main() {
+	log.Fatal(http.ListenAndServe(":1081", &proxy{}))
 }
