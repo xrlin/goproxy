@@ -1,12 +1,12 @@
 package main
 
 import (
-	"testing"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
-	"io"
-	"encoding/json"
 	"strings"
+	"testing"
 )
 
 var testServer *http.Server
@@ -24,7 +24,7 @@ func getProxyClient() (*http.Client, error) {
 		return nil, err
 	}
 	proxyFunc := http.ProxyURL(purl)
-	transport := &http.Transport{ Proxy: proxyFunc }
+	transport := &http.Transport{Proxy: proxyFunc}
 	client := http.Client{Transport: transport}
 	return &client, nil
 }
