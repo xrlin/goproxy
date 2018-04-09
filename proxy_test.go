@@ -39,7 +39,7 @@ func containsHeader(response *http.Response, header string, value string) bool {
 	io.ReadFull(response.Body, b)
 	var h hs
 	json.Unmarshal(b, &h)
-	return strings.Index(h.Headers[header], value) != -1
+	return strings.Contains(h.Headers[header], value)
 }
 
 // Test http proxy

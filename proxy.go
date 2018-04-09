@@ -18,11 +18,11 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		p.handleTunnel(w, req)
 		return
 	}
-	p.handleHttp(w, req)
+	p.handleHTTP(w, req)
 }
 
 // Handle normal http connection
-func (p *proxy) handleHttp(w http.ResponseWriter, req *http.Request) {
+func (p *proxy) handleHTTP(w http.ResponseWriter, req *http.Request) {
 	transport := http.DefaultTransport
 	newReq := new(http.Request)
 	*newReq = *req
@@ -65,11 +65,11 @@ func (p *proxy) handleTunnel(w http.ResponseWriter, req *http.Request) {
 	// called before Hijack() called, otherwise will block the connection
 	w.WriteHeader(http.StatusOK)
 	source, _, err := hj.Hijack()
-	defer source.Close()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
+	defer source.Close()
 	eof.Add(2)
 	go func() {
 		io.Copy(conn, source)
