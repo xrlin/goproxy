@@ -1,12 +1,12 @@
 package main
 
 import (
-	"github.com/pkg/errors"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"sync"
+	"errors"
 )
 
 type proxy struct {
@@ -61,7 +61,7 @@ func (p proxy) pipeConnection(dst *net.Conn, src *net.Conn, wg *sync.WaitGroup) 
 func (p proxy) convertToHijackConn(w http.ResponseWriter) (conn net.Conn, err error) {
 	hj, ok := w.(http.Hijacker)
 	if !ok {
-		err = errors.New("Hijacking not supported")
+		err = errors.New("hijacking not supported")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
