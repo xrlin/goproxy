@@ -13,7 +13,7 @@ var testServer *http.Server
 
 func startProxy() {
 	if testServer == nil {
-		testServer = &http.Server{Addr: "127.0.0.1:1081", Handler: &proxy{}}
+		testServer = &http.Server{Addr: "127.0.0.1:1081", Handler: &Proxy{}}
 	}
 	testServer.ListenAndServe()
 }
@@ -42,7 +42,7 @@ func containsHeader(response *http.Response, header string, value string) bool {
 	return strings.Contains(h.Headers[header], value)
 }
 
-// Test http proxy
+// Test http Proxy
 func TestProxy_ServeHTTP(t *testing.T) {
 	go startProxy()
 	//defer stopProxy()
@@ -52,11 +52,11 @@ func TestProxy_ServeHTTP(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 	if !containsHeader(resp, "X-Forwarded-For", "127.0.0.1") {
-		t.Fatal("no X-Forwarded-For found, proxy failed")
+		t.Fatal("no X-Forwarded-For found, Proxy failed")
 	}
 }
 
-// Test https proxy
+// Test https Proxy
 func TestProxy_ServeHTTP2(t *testing.T) {
 	go startProxy()
 	client, _ := getProxyClient()

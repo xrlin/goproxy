@@ -1,19 +1,31 @@
 package main
 
 import (
+	"errors"
+	"flag"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"sync"
-	"errors"
 )
 
-type proxy struct {
+type Proxy struct {
+	// The ip address Proxy listen to
+	IP   string
+	Port string
+}
+
+func (p Proxy) Address() string {
+	return p.IP + ":" + p.Port
+}
+
+func (p *Proxy) Run() {
+	log.Fatal(http.ListenAndServe(p.Address(), p))
 }
 
 // Main method to listen and handle the incoming connection, includes http, https, ws
-func (p *proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (p *Proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodConnect {
 		p.handleTunnel(w, req)
 		return
@@ -21,12 +33,12 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	p.handleHTTP(w, req)
 }
 
-func (p *proxy) getIP(req *http.Request) (ip string, err error) {
+func (p *Proxy) getIP(req *http.Request) (ip string, err error) {
 	ip, _, err = net.SplitHostPort(req.RemoteAddr)
 	return
 }
 
-func (p proxy) addHeader(sourceHeader http.Header, header http.Header) {
+func (p Proxy) addHeader(sourceHeader http.Header, header http.Header) {
 	for key, value := range header {
 		for _, v := range value {
 			sourceHeader.Add(key, v)
@@ -35,7 +47,7 @@ func (p proxy) addHeader(sourceHeader http.Header, header http.Header) {
 }
 
 // Handle normal http connection
-func (p *proxy) handleHTTP(w http.ResponseWriter, req *http.Request) {
+func (p *Proxy) handleHTTP(w http.ResponseWriter, req *http.Request) {
 	transport := http.DefaultTransport
 	newReq := new(http.Request)
 	*newReq = *req
@@ -53,12 +65,12 @@ func (p *proxy) handleHTTP(w http.ResponseWriter, req *http.Request) {
 	resp.Body.Close()
 }
 
-func (p proxy) pipeConnection(dst *net.Conn, src *net.Conn, wg *sync.WaitGroup) {
+func (p Proxy) pipeConnection(dst *net.Conn, src *net.Conn, wg *sync.WaitGroup) {
 	io.Copy(*dst, *src)
 	wg.Done()
 }
 
-func (p proxy) convertToHijackConn(w http.ResponseWriter) (conn net.Conn, err error) {
+func (p Proxy) convertToHijackConn(w http.ResponseWriter) (conn net.Conn, err error) {
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		err = errors.New("hijacking not supported")
@@ -74,8 +86,8 @@ func (p proxy) convertToHijackConn(w http.ResponseWriter) (conn net.Conn, err er
 	return
 }
 
-// Use tunnel to proxy https、ws and other proto..
-func (p *proxy) handleTunnel(w http.ResponseWriter, req *http.Request) {
+// Use tunnel to Proxy https、ws and other proto..
+func (p *Proxy) handleTunnel(w http.ResponseWriter, req *http.Request) {
 	conn, err := net.Dial("tcp", req.Host)
 	if err != nil {
 		w.Write([]byte(err.Error()))
@@ -96,5 +108,9 @@ func (p *proxy) handleTunnel(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	log.Fatal(http.ListenAndServe(":1081", &proxy{}))
+	proxy := new(Proxy)
+	flag.StringVar(&proxy.IP, "ip", "127.0.0.1", "the ip address proxy binding to")
+	flag.StringVar(&proxy.Port, "port", "1081", "the port proxy binding to")
+	flag.Parse()
+	proxy.Run()
 }
