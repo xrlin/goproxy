@@ -17,12 +17,12 @@ type Proxy struct {
 	Port string
 }
 
-// Get the address(includes port) according the configuration in Proxy
+// Address return the address(includes port) according the configuration in Proxy
 func (p Proxy) Address() string {
 	return p.IP + ":" + p.Port
 }
 
-// Call this method to start the proxy server
+// Run the proxy server
 func (p *Proxy) Run() {
 	log.Fatal(http.ListenAndServe(p.Address(), p))
 }
