@@ -10,16 +10,19 @@ import (
 	"sync"
 )
 
+// The Proxy struct contains the main function to proxy client's request and configuration
 type Proxy struct {
 	// The ip address Proxy listen to
 	IP   string
 	Port string
 }
 
+// Get the address(includes port) according the configuration in Proxy
 func (p Proxy) Address() string {
 	return p.IP + ":" + p.Port
 }
 
+// Call this method to start the proxy server
 func (p *Proxy) Run() {
 	log.Fatal(http.ListenAndServe(p.Address(), p))
 }
