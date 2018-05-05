@@ -20,7 +20,7 @@ type Proxy struct {
 	KeyPath  string
 }
 
-func (p Proxy) TLSEnable() bool {
+func (p Proxy) tlsEnable() bool {
 	return p.CertPath != "" && p.KeyPath != ""
 }
 
@@ -31,7 +31,7 @@ func (p Proxy) Address() string {
 
 // Run the proxy server
 func (p *Proxy) Run() {
-	if p.TLSEnable() {
+	if p.tlsEnable() {
 		log.Fatal(http.ListenAndServeTLS(p.Address(), p.CertPath, p.KeyPath, p))
 		return
 	}
