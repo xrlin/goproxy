@@ -15,6 +15,13 @@ type Proxy struct {
 	// The ip address Proxy listen to
 	IP   string
 	Port string
+	// If both CertPath and KeyPath is present, auto enable tls
+	CertPath string
+	KeyPath  string
+}
+
+func (p Proxy) TLSEnable() bool {
+	return p.CertPath != "" && p.KeyPath != ""
 }
 
 // Address return the address(includes port) according the configuration in Proxy
@@ -24,6 +31,10 @@ func (p Proxy) Address() string {
 
 // Run the proxy server
 func (p *Proxy) Run() {
+	if p.TLSEnable() {
+		log.Fatal(http.ListenAndServeTLS(p.Address(), p.CertPath, p.KeyPath, p))
+		return
+	}
 	log.Fatal(http.ListenAndServe(p.Address(), p))
 }
 
@@ -114,6 +125,8 @@ func main() {
 	proxy := new(Proxy)
 	flag.StringVar(&proxy.IP, "ip", "127.0.0.1", "the ip address proxy binding to")
 	flag.StringVar(&proxy.Port, "port", "1081", "the port proxy binding to")
+	flag.StringVar(&proxy.CertPath, "cert", "", "the path of cert file used for tls")
+	flag.StringVar(&proxy.KeyPath, "key", "", "the path of key file used for tls")
 	flag.Parse()
 	proxy.Run()
 }
