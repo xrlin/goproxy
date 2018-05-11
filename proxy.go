@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -18,6 +19,48 @@ type Proxy struct {
 	// If both CertPath and KeyPath is present, auto enable tls
 	CertPath string
 	KeyPath  string
+	// Received from flag. format "user:password", multi values split with `;`
+	authFlag string
+	// Basic auth configuration.
+	basicAuth map[string]string
+}
+
+func (p Proxy) auth(req *http.Request) bool {
+	log.Println("Checking auth ...")
+	log.Println(req.Header.Get("Proxy-Authorization"))
+	basicAuthHeader := req.Header.Get("Proxy-Authorization")
+	username, password, ok := ParseBasicAuth(basicAuthHeader)
+	if len(p.basicAuth) == 0 {
+		return true
+	}
+	if !ok {
+		return false
+	}
+	for k, v := range p.basicAuth {
+		if k == username && v == password {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Proxy) parseAuthConfig() {
+	if p.authFlag == "" {
+		return
+	}
+	cfg := strings.Split(p.authFlag, ";")
+	var username, password string
+	for _, c := range cfg {
+		parsedResult := strings.Split(c, ":")
+		if len(parsedResult) != 2 {
+			panic("Auth config failed: " + c + " is invalid")
+		}
+		username, password = parsedResult[0], parsedResult[1]
+		if p.basicAuth == nil {
+			p.basicAuth = make(map[string]string)
+		}
+		p.basicAuth[username] = password
+	}
 }
 
 func (p Proxy) tlsEnable() bool {
@@ -31,6 +74,7 @@ func (p Proxy) Address() string {
 
 // Run the proxy server
 func (p *Proxy) Run() {
+	p.parseAuthConfig()
 	if p.tlsEnable() {
 		log.Fatal(http.ListenAndServeTLS(p.Address(), p.CertPath, p.KeyPath, p))
 		return
@@ -40,6 +84,10 @@ func (p *Proxy) Run() {
 
 // Main method to listen and handle the incoming connection, includes http, https, ws
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if ok := p.auth(req); !ok {
+		w.WriteHeader(403)
+		return
+	}
 	if req.Method == http.MethodConnect {
 		p.handleTunnel(w, req)
 		return
@@ -127,6 +175,7 @@ func main() {
 	flag.StringVar(&proxy.Port, "port", "1081", "the port proxy binding to")
 	flag.StringVar(&proxy.CertPath, "cert", "", "the path of cert file used for tls")
 	flag.StringVar(&proxy.KeyPath, "key", "", "the path of key file used for tls")
+	flag.StringVar(&proxy.authFlag, "auth", "", "auth configuration for proxy. If not set, no auth is required. Argument format: user1:password;user2:password")
 	flag.Parse()
 	proxy.Run()
 }

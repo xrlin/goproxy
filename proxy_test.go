@@ -9,39 +9,49 @@ import (
 	"net/http/httptrace"
 	"net/url"
 	"strings"
-	"sync"
 	"testing"
 )
 
-var testServer *http.Server
+var simpleProxy *Proxy
 var tlsProxy *Proxy
+var authTLSProxy *Proxy
+
+const simpleProxyURL = "http://localhost:1081"
+const tlsProxyURL = "https://localhost:1082"
+const authTLSProxyURL = "https://user:password@localhost:1083"
+const authFailedProxyURL = "https://user:failed@localhost:1083"
 
 func init() {
 	go startTLSProxy()
 	go startProxy()
+	go startAuthTLSProxy()
 }
 
 func startProxy() {
-	if testServer == nil {
-		testServer = &http.Server{Addr: "127.0.0.1:1081", Handler: &Proxy{}}
+	if simpleProxy == nil {
+		simpleProxy = &Proxy{IP: "127.0.0.1", Port: "1081"}
 	}
-	testServer.ListenAndServe()
+	go simpleProxy.Run()
 }
 
-var mutex sync.Mutex
-
 func startTLSProxy() {
-	mutex.Lock()
 	if tlsProxy != nil {
 		return
 	}
-	tlsProxy := &Proxy{IP: "127.0.0.1", Port: "1082", CertPath: "localhost.crt", KeyPath: "localhost.key"}
+	tlsProxy = &Proxy{IP: "127.0.0.1", Port: "1082", CertPath: "localhost.crt", KeyPath: "localhost.key"}
 	go tlsProxy.Run()
-	mutex.Unlock()
+}
+
+func startAuthTLSProxy() {
+	if authTLSProxy != nil {
+		return
+	}
+	authTLSProxy = &Proxy{IP: "127.0.0.1", Port: "1083", CertPath: "localhost.crt", KeyPath: "localhost.key", authFlag: "user:password"}
+	go authTLSProxy.Run()
 }
 
 func getProxyClient() (*http.Client, error) {
-	purl, err := url.Parse("http://127.0.0.1:1081")
+	purl, err := url.Parse(simpleProxyURL)
 	if err != nil {
 		return nil, err
 	}
@@ -76,13 +86,34 @@ func (t *transport) ConnectStart(network, addr string) {
 }
 
 func getTLSProxyClient() (*http.Client, error) {
-	purl, err := url.Parse("https://localhost:1082")
+	purl, err := url.Parse(tlsProxyURL)
 	if err != nil {
 		return nil, err
 	}
 	proxyFunc := http.ProxyURL(purl)
 	tp := &transport{&http.Transport{Proxy: proxyFunc, TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}, nil}
 	client := http.Client{Transport: tp}
+	return &client, nil
+}
+
+func getAuthProxyClient() (*http.Client, error) {
+	purl, err := url.Parse(authTLSProxyURL)
+	if err != nil {
+		return nil, err
+	}
+	proxyFunc := http.ProxyURL(purl)
+	client := http.Client{Transport: &http.Transport{Proxy: proxyFunc, TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+	return &client, nil
+}
+
+// Return the client with proxy config that will be forbidden
+func getAuthFailedProxyClient() (*http.Client, error) {
+	purl, err := url.Parse(authFailedProxyURL)
+	if err != nil {
+		return nil, err
+	}
+	proxyFunc := http.ProxyURL(purl)
+	client := http.Client{Transport: &http.Transport{Proxy: proxyFunc, TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
 	return &client, nil
 }
 
@@ -167,5 +198,43 @@ func TestProxy_ServeHTTP4(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("response with %d\n", resp.StatusCode)
+	}
+}
+
+// Test authorized TLS support with http request
+func TestProxy_ServeHTTP5(t *testing.T) {
+	client, _ := getAuthProxyClient()
+	resp, err := client.Get("http://httpbin.org/headers?show_env=1")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	log.Println(resp.StatusCode)
+	if !containsHeader(resp, "X-Forwarded-For", "127.0.0.1") {
+		t.Fatal("no X-Forwarded-For found, Proxy failed")
+	}
+}
+
+// Test authorized TLS support with https request
+func TestProxy_ServeHTTP6(t *testing.T) {
+	client, _ := getAuthProxyClient()
+
+	resp, err := client.Get("https://httpbin.org/headers?show_env=1")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("response with %d\n", resp.StatusCode)
+	}
+}
+
+// Test auth failed
+func TestProxy_ServeHTTP7(t *testing.T) {
+	client, _ := getAuthFailedProxyClient()
+	resp, err := client.Get("http://httpbin.org/headers?show_env=1")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("response with %d, but 403 is expected\n", resp.StatusCode)
 	}
 }
