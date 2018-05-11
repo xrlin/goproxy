@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// parseBasicAuth parses an HTTP Basic Authentication string.
+// ParseBasicAuth parses an HTTP Basic Authentication string.
 // "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==" returns ("Aladdin", "open sesame", true).
 func ParseBasicAuth(auth string) (username, password string, ok bool) {
 	const prefix = "Basic "
