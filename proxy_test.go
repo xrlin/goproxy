@@ -138,6 +138,7 @@ func TestProxy_ServeHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
+	defer resp.Body.Close()
 	if !containsHeader(resp, "X-Forwarded-For", "127.0.0.1") {
 		t.Fatal("no X-Forwarded-For found, Proxy failed")
 	}
@@ -150,6 +151,7 @@ func TestProxy_ServeHTTP2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("response with %d\n", resp.StatusCode)
 	}
@@ -162,6 +164,7 @@ func TestProxy_ServeHTTP3(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
+	defer resp.Body.Close()
 	if !containsHeader(resp, "X-Forwarded-For", "127.0.0.1") {
 		t.Fatal("no X-Forwarded-For found, Proxy failed")
 	}
@@ -196,6 +199,7 @@ func TestProxy_ServeHTTP4(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("response with %d\n", resp.StatusCode)
 	}
@@ -209,6 +213,7 @@ func TestProxy_ServeHTTP5(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 	log.Println(resp.StatusCode)
+	defer resp.Body.Close()
 	if !containsHeader(resp, "X-Forwarded-For", "127.0.0.1") {
 		t.Fatal("no X-Forwarded-For found, Proxy failed")
 	}
@@ -222,6 +227,7 @@ func TestProxy_ServeHTTP6(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("response with %d\n", resp.StatusCode)
 	}
@@ -234,6 +240,7 @@ func TestProxy_ServeHTTP7(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("response with %d, but 403 is expected\n", resp.StatusCode)
 	}
