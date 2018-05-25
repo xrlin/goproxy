@@ -1,4 +1,4 @@
-package main
+package proxy
 
 import (
 	"crypto/tls"
@@ -46,7 +46,7 @@ func startAuthTLSProxy() {
 	if authTLSProxy != nil {
 		return
 	}
-	authTLSProxy = &Proxy{IP: "127.0.0.1", Port: "1083", CertPath: "localhost.crt", KeyPath: "localhost.key", authFlag: "user:password"}
+	authTLSProxy = &Proxy{IP: "127.0.0.1", Port: "1083", CertPath: "localhost.crt", KeyPath: "localhost.key", AuthFlag: "user:password"}
 	go authTLSProxy.Run()
 }
 

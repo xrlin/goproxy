@@ -1,4 +1,4 @@
-package main
+package proxy
 
 import (
 	"encoding/base64"
@@ -6,7 +6,7 @@ import (
 )
 
 // ParseBasicAuth parses an HTTP Basic Authentication string.
-// "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==" returns ("Aladdin", "open sesame", true).
+// "Basic dXNlcjpwYXNzd29yZA==" returns ("user", "password", true).
 func ParseBasicAuth(auth string) (username, password string, ok bool) {
 	const prefix = "Basic "
 	if !strings.HasPrefix(auth, prefix) {

@@ -1,8 +1,10 @@
-package main
+/*
+Package proxy provides the simple http/https proxy server
+*/
+package proxy
 
 import (
 	"errors"
-	"flag"
 	"io"
 	"log"
 	"net"
@@ -20,7 +22,7 @@ type Proxy struct {
 	CertPath string
 	KeyPath  string
 	// Received from flag. format "user:password", multi values split with `;`
-	authFlag string
+	AuthFlag string
 	// Basic auth configuration.
 	basicAuth map[string]string
 }
@@ -45,10 +47,10 @@ func (p Proxy) auth(req *http.Request) bool {
 }
 
 func (p *Proxy) parseAuthConfig() {
-	if p.authFlag == "" {
+	if p.AuthFlag == "" {
 		return
 	}
-	cfg := strings.Split(p.authFlag, ";")
+	cfg := strings.Split(p.AuthFlag, ";")
 	var username, password string
 	for _, c := range cfg {
 		parsedResult := strings.Split(c, ":")
@@ -167,15 +169,4 @@ func (p *Proxy) handleTunnel(w http.ResponseWriter, req *http.Request) {
 	go p.pipeConnection(&conn, &source, &eof)
 	go p.pipeConnection(&source, &conn, &eof)
 	eof.Wait()
-}
-
-func main() {
-	proxy := new(Proxy)
-	flag.StringVar(&proxy.IP, "ip", "127.0.0.1", "the ip address proxy binding to")
-	flag.StringVar(&proxy.Port, "port", "1081", "the port proxy binding to")
-	flag.StringVar(&proxy.CertPath, "cert", "", "the path of cert file used for tls")
-	flag.StringVar(&proxy.KeyPath, "key", "", "the path of key file used for tls")
-	flag.StringVar(&proxy.authFlag, "auth", "", "auth configuration for proxy. If not set, no auth is required. Argument format: user1:password;user2:password")
-	flag.Parse()
-	proxy.Run()
 }
